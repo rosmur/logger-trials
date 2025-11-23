@@ -123,12 +123,16 @@ class JSONFormatter(logging.Formatter):
 
 
 class ContextLogger(logging.LoggerAdapter):
-    """Logger adapter that allows adding context to log messages."""
+    """Logger adapter that allows structlog-style logging with keyword arguments.
+
+    This adapter mimics structlog's API by accepting arbitrary keyword arguments
+    and converting them to Python logging's extra parameter format.
+    """
 
     def process(
         self, msg: str, kwargs: dict[str, Any]
     ) -> tuple[str, dict[str, Any]]:
-        """Process log message and add context from extra.
+        """Process log message and convert kwargs to extra parameter.
 
         Parameters
         ----------
@@ -143,16 +147,31 @@ class ContextLogger(logging.LoggerAdapter):
             Processed message and kwargs
 
         """
-        # Extract extra context and store it in a way that JSONFormatter can access
-        if "extra" in kwargs:
-            extra_data = kwargs.get("extra", {})
-            if not isinstance(extra_data, dict):
-                extra_data = {}
+        # Standard logging kwargs that should not be moved to extra
+        standard_kwargs = {"exc_info", "stack_info", "stacklevel", "extra"}
 
-            # Create a new extra dict that includes extra_data
-            kwargs["extra"] = {"extra_data": extra_data}
+        # Separate standard kwargs from context kwargs
+        extra_data = {}
+        cleaned_kwargs = {}
 
-        return msg, kwargs
+        for key, value in kwargs.items():
+            if key in standard_kwargs:
+                cleaned_kwargs[key] = value
+            else:
+                # All other kwargs become extra data
+                extra_data[key] = value
+
+        # Merge with existing extra if present
+        if "extra" in cleaned_kwargs:
+            existing_extra = cleaned_kwargs["extra"]
+            if isinstance(existing_extra, dict):
+                extra_data.update(existing_extra)
+
+        # Set the extra data in a way JSONFormatter can access
+        if extra_data:
+            cleaned_kwargs["extra"] = {"extra_data": extra_data}
+
+        return msg, cleaned_kwargs
 
 
 def setup_logging(
