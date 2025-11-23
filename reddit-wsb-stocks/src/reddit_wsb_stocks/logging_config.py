@@ -1,10 +1,10 @@
 """
-Title: Structured Logging Configuration
+Title: Loguru Logging Configuration
 
 Author: Claude AI
 
 Description:
-Centralized logging configuration using structlog with colored output and file
+Centralized logging configuration using loguru with colored output and file
 rotation. Provides both console and file logging with appropriate formatting.
 
 Usage:
@@ -22,52 +22,11 @@ Notes:
 
 """
 
-import logging
 import sys
-from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from typing import Any
 
-import structlog
-from colorama import Fore, Style, init
-
-# Initialize colorama for cross-platform colored output
-init(autoreset=True)
-
-# Color mapping for log levels
-LEVEL_COLORS = {
-    "CRITICAL": Fore.RED + Style.BRIGHT,
-    "ERROR": Fore.LIGHTRED_EX,
-    "WARNING": Fore.YELLOW,
-    "INFO": Fore.BLUE,
-    "DEBUG": Fore.LIGHTBLACK_EX,
-}
-
-
-def add_log_level_color(
-    logger: logging.Logger, method_name: str, event_dict: dict[str, Any]
-) -> dict[str, Any]:
-    """Add color to log level names in console output.
-
-    Parameters
-    ----------
-    logger
-        The logger instance
-    method_name
-        The name of the method being called
-    event_dict
-        The event dictionary containing log data
-
-    Returns
-    -------
-    dict[str, Any]
-        Event dictionary with colored level
-
-    """
-    level = event_dict.get("level", "").upper()
-    if level in LEVEL_COLORS:
-        event_dict["level"] = f"{LEVEL_COLORS[level]}{level}{Style.RESET_ALL}"
-    return event_dict
+from loguru import logger
 
 
 def setup_logging(
@@ -87,79 +46,34 @@ def setup_logging(
         Whether to enable file logging
 
     """
+    # Remove default handler
+    logger.remove()
+
     # Create log directory if it doesn't exist
     if enable_file_logging:
         log_dir.mkdir(parents=True, exist_ok=True)
 
-    # Configure standard logging
-    logging.basicConfig(
-        format="%(message)s",
-        stream=sys.stdout,
-        level=getattr(logging, log_level.upper()),
+    # Add console handler with colors
+    logger.add(
+        sys.stdout,
+        level=log_level.upper(),
+        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+        colorize=True,
     )
 
-    # Set up structlog processors
-    processors: list[Any] = [
-        structlog.stdlib.add_log_level,
-        structlog.stdlib.add_logger_name,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
-    ]
-
-    # Console handler with colors
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(getattr(logging, log_level.upper()))
-
-    # File handler with rotation
-    file_handler: TimedRotatingFileHandler | None = None
+    # Add file handler with rotation and JSON format
     if enable_file_logging:
-        file_handler = TimedRotatingFileHandler(
-            filename=log_dir / "reddit_wsb_stocks.log",
-            when="midnight",
-            interval=1,
-            backupCount=30,
+        logger.add(
+            log_dir / "reddit_wsb_stocks.log",
+            level=log_level.upper(),
+            rotation="00:00",  # Rotate at midnight
+            retention="30 days",  # Keep logs for 30 days
             encoding="utf-8",
+            serialize=True,  # JSON format
         )
-        file_handler.setLevel(getattr(logging, log_level.upper()))
-
-    # Configure structlog
-    structlog.configure(
-        processors=processors
-        + [
-            add_log_level_color,
-            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
-        ],
-        wrapper_class=structlog.stdlib.BoundLogger,
-        context_class=dict,
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        cache_logger_on_first_use=True,
-    )
-
-    # Set up formatters
-    console_formatter = structlog.stdlib.ProcessorFormatter(
-        processor=structlog.dev.ConsoleRenderer(colors=False),
-        foreign_pre_chain=processors,
-    )
-
-    console_handler.setFormatter(console_formatter)
-
-    if enable_file_logging and file_handler is not None:
-        file_formatter = structlog.stdlib.ProcessorFormatter(
-            processor=structlog.processors.JSONRenderer(),
-            foreign_pre_chain=processors,
-        )
-        file_handler.setFormatter(file_formatter)
-
-    # Configure root logger
-    root_logger = logging.getLogger()
-    root_logger.handlers.clear()
-    root_logger.addHandler(console_handler)
-    if enable_file_logging and file_handler is not None:
-        root_logger.addHandler(file_handler)
 
 
-def get_logger(name: str) -> structlog.stdlib.BoundLogger:
+def get_logger(name: str) -> Any:
     """Get a configured logger instance.
 
     Parameters
@@ -169,8 +83,8 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
 
     Returns
     -------
-    structlog.stdlib.BoundLogger
+    Any
         Configured logger instance
 
     """
-    return structlog.get_logger(name)
+    return logger.bind(name=name)

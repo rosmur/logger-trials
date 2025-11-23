@@ -8,7 +8,7 @@ A Python package for retrieving stock sentiment data from Reddit's WallStreetBet
 - ✅ **Type-Safe**: Full type annotations with Pydantic validation
 - 📊 **Data Validation**: Automatic validation of API responses
 - 💾 **JSON Storage**: Save data to JSON files with automatic timestamping
-- 🎨 **Structured Logging**: Beautiful, structured logs with `structlog`
+- 🎨 **Structured Logging**: Beautiful, structured logs with `loguru`
 - 🧪 **Well Tested**: 87% test coverage with pytest
 - 🔧 **CLI Interface**: Command-line tool for quick data fetching
 - ⚡ **Async Support**: Both sync and async API methods
