@@ -8,7 +8,7 @@ A Python package for retrieving stock sentiment data from Reddit's WallStreetBet
 - ✅ **Type-Safe**: Full type annotations with Pydantic validation
 - 📊 **Data Validation**: Automatic validation of API responses
 - 💾 **JSON Storage**: Save data to JSON files with automatic timestamping
-- 🎨 **Structured Logging**: Beautiful, structured logs with `structlog`
+- 🎨 **Structured Logging**: Beautiful, structured logs with Python's built-in logging
 - 🧪 **Well Tested**: 87% test coverage with pytest
 - 🔧 **CLI Interface**: Command-line tool for quick data fetching
 - ⚡ **Async Support**: Both sync and async API methods
@@ -204,7 +204,7 @@ The package follows best practices for production Python code:
 - **SOLID Principles**: Clean, maintainable code structure
 - **Type Safety**: Full type annotations checked by `pyrefly`
 - **Data Validation**: Pydantic models for robust validation
-- **Structured Logging**: Rich logging with `structlog`
+- **Structured Logging**: Rich logging with Python's built-in logging
 - **Comprehensive Testing**: 87% code coverage
 - **Documentation**: 100% docstring coverage
 
@@ -269,4 +269,4 @@ Contributions are welcome! Please:
 ## Credits
 
 - Data provided by [Tradestie API](https://tradestie.com/)
-- Built with Python, httpx, Pydantic, and structlog
+- Built with Python, httpx, Pydantic, and colorama

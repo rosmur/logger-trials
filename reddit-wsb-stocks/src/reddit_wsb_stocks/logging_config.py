@@ -1,18 +1,19 @@
 """
-Title: Structured Logging Configuration
+Title: Python Logging Configuration
 
 Author: Claude AI
 
 Description:
-Centralized logging configuration using structlog with colored output and file
-rotation. Provides both console and file logging with appropriate formatting.
+Centralized logging configuration using Python's built-in logging module with
+colored output and file rotation. Provides both console and file logging with
+appropriate formatting.
 
 Usage:
     from reddit_wsb_stocks.logging_config import setup_logging, get_logger
 
     setup_logging()
     logger = get_logger(__name__)
-    logger.info("application_started", version="1.0.0")
+    logger.info("Application started", extra={"version": "1.0.0"})
 
 Notes:
     - Logs are rotated daily and kept for 30 days
@@ -22,13 +23,13 @@ Notes:
 
 """
 
+import json
 import logging
 import sys
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from typing import Any
 
-import structlog
 from colorama import Fore, Style, init
 
 # Initialize colorama for cross-platform colored output
@@ -44,30 +45,114 @@ LEVEL_COLORS = {
 }
 
 
-def add_log_level_color(
-    logger: logging.Logger, method_name: str, event_dict: dict[str, Any]
-) -> dict[str, Any]:
-    """Add color to log level names in console output.
+class ColoredConsoleFormatter(logging.Formatter):
+    """Custom formatter that adds colors to log levels in console output."""
 
-    Parameters
-    ----------
-    logger
-        The logger instance
-    method_name
-        The name of the method being called
-    event_dict
-        The event dictionary containing log data
+    def format(self, record: logging.LogRecord) -> str:
+        """Format log record with colored level name.
 
-    Returns
-    -------
-    dict[str, Any]
-        Event dictionary with colored level
+        Parameters
+        ----------
+        record
+            The log record to format
 
-    """
-    level = event_dict.get("level", "").upper()
-    if level in LEVEL_COLORS:
-        event_dict["level"] = f"{LEVEL_COLORS[level]}{level}{Style.RESET_ALL}"
-    return event_dict
+        Returns
+        -------
+        str
+            Formatted log message with colored level
+
+        """
+        # Save original levelname
+        original_levelname = record.levelname
+
+        # Add color to levelname
+        if record.levelname in LEVEL_COLORS:
+            record.levelname = (
+                f"{LEVEL_COLORS[record.levelname]}{record.levelname}{Style.RESET_ALL}"
+            )
+
+        # Format the message
+        result = super().format(record)
+
+        # Restore original levelname
+        record.levelname = original_levelname
+
+        return result
+
+
+class JSONFormatter(logging.Formatter):
+    """Custom formatter that outputs logs as JSON for file logging."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Format log record as JSON.
+
+        Parameters
+        ----------
+        record
+            The log record to format
+
+        Returns
+        -------
+        str
+            JSON formatted log message
+
+        """
+        log_data = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno,
+        }
+
+        # Add extra fields if present
+        if hasattr(record, "extra_data"):
+            log_data.update(record.extra_data)
+
+        # Add exception info if present
+        if record.exc_info:
+            log_data["exception"] = self.formatException(record.exc_info)
+
+        # Add stack info if present
+        if record.stack_info:
+            log_data["stack_info"] = self.formatStack(record.stack_info)
+
+        return json.dumps(log_data)
+
+
+class ContextLogger(logging.LoggerAdapter):
+    """Logger adapter that allows adding context to log messages."""
+
+    def process(
+        self, msg: str, kwargs: dict[str, Any]
+    ) -> tuple[str, dict[str, Any]]:
+        """Process log message and add context from extra.
+
+        Parameters
+        ----------
+        msg
+            The log message
+        kwargs
+            Additional keyword arguments
+
+        Returns
+        -------
+        tuple[str, dict[str, Any]]
+            Processed message and kwargs
+
+        """
+        # Extract extra context and store it in a way that JSONFormatter can access
+        if "extra" in kwargs:
+            extra_data = kwargs.get("extra", {})
+            if not isinstance(extra_data, dict):
+                extra_data = {}
+
+            # Create a new extra dict that includes extra_data
+            kwargs["extra"] = {"extra_data": extra_data}
+
+        return msg, kwargs
 
 
 def setup_logging(
@@ -75,7 +160,7 @@ def setup_logging(
     log_level: str = "INFO",
     enable_file_logging: bool = True,
 ) -> None:
-    """Configure structured logging for the application.
+    """Configure logging for the application.
 
     Parameters
     ----------
@@ -91,28 +176,26 @@ def setup_logging(
     if enable_file_logging:
         log_dir.mkdir(parents=True, exist_ok=True)
 
-    # Configure standard logging
-    logging.basicConfig(
-        format="%(message)s",
-        stream=sys.stdout,
-        level=getattr(logging, log_level.upper()),
-    )
-
-    # Set up structlog processors
-    processors: list[Any] = [
-        structlog.stdlib.add_log_level,
-        structlog.stdlib.add_logger_name,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
-    ]
+    # Get the root logger and clear any existing handlers
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+    root_logger.setLevel(getattr(logging, log_level.upper()))
 
     # Console handler with colors
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(getattr(logging, log_level.upper()))
 
+    # Console formatter with timestamp and colored levels
+    console_format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    console_formatter = ColoredConsoleFormatter(
+        console_format, datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    console_handler.setFormatter(console_formatter)
+
+    # Add console handler to root logger
+    root_logger.addHandler(console_handler)
+
     # File handler with rotation
-    file_handler: TimedRotatingFileHandler | None = None
     if enable_file_logging:
         file_handler = TimedRotatingFileHandler(
             filename=log_dir / "reddit_wsb_stocks.log",
@@ -123,43 +206,15 @@ def setup_logging(
         )
         file_handler.setLevel(getattr(logging, log_level.upper()))
 
-    # Configure structlog
-    structlog.configure(
-        processors=processors
-        + [
-            add_log_level_color,
-            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
-        ],
-        wrapper_class=structlog.stdlib.BoundLogger,
-        context_class=dict,
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        cache_logger_on_first_use=True,
-    )
-
-    # Set up formatters
-    console_formatter = structlog.stdlib.ProcessorFormatter(
-        processor=structlog.dev.ConsoleRenderer(colors=False),
-        foreign_pre_chain=processors,
-    )
-
-    console_handler.setFormatter(console_formatter)
-
-    if enable_file_logging and file_handler is not None:
-        file_formatter = structlog.stdlib.ProcessorFormatter(
-            processor=structlog.processors.JSONRenderer(),
-            foreign_pre_chain=processors,
-        )
+        # JSON formatter for file output
+        file_formatter = JSONFormatter(datefmt="%Y-%m-%dT%H:%M:%S")
         file_handler.setFormatter(file_formatter)
 
-    # Configure root logger
-    root_logger = logging.getLogger()
-    root_logger.handlers.clear()
-    root_logger.addHandler(console_handler)
-    if enable_file_logging and file_handler is not None:
+        # Add file handler to root logger
         root_logger.addHandler(file_handler)
 
 
-def get_logger(name: str) -> structlog.stdlib.BoundLogger:
+def get_logger(name: str) -> ContextLogger:
     """Get a configured logger instance.
 
     Parameters
@@ -169,8 +224,9 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
 
     Returns
     -------
-    structlog.stdlib.BoundLogger
-        Configured logger instance
+    ContextLogger
+        Configured logger instance that supports context via extra parameter
 
     """
-    return structlog.get_logger(name)
+    logger = logging.getLogger(name)
+    return ContextLogger(logger, {})

@@ -20,7 +20,7 @@ Usage:
 
 Notes:
     - All data is validated using Pydantic models
-    - Structured logging with structlog
+    - Structured logging with Python's built-in logging
     - Type-safe with full type annotations
 
 """
