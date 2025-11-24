@@ -5,8 +5,8 @@ Author: Claude AI
 
 Description:
 Centralized logging configuration using Python's built-in logging module with
-colored output and file rotation. Provides both console and file logging with
-appropriate formatting.
+colored output and file rotation. Uses logging.config.dictConfig() with settings
+from logging_settings.py for better separation of concerns.
 
 Usage:
     from reddit_wsb_stocks.logging_config import setup_logging, get_logger
@@ -20,17 +20,19 @@ Notes:
     - Console output includes colored level names
     - File output uses JSON format for structured querying
     - Sensitive data should never be logged
+    - Configuration is defined in logging_settings.py
 
 """
 
 import json
 import logging
-import sys
-from logging.handlers import TimedRotatingFileHandler
+import logging.config
 from pathlib import Path
 from typing import Any
 
 from colorama import Fore, Style, init
+
+from reddit_wsb_stocks.logging_settings import get_logging_config
 
 # Initialize colorama for cross-platform colored output
 init(autoreset=True)
@@ -179,7 +181,7 @@ def setup_logging(
     log_level: str = "INFO",
     enable_file_logging: bool = True,
 ) -> None:
-    """Configure logging for the application.
+    """Configure logging for the application using dictConfig.
 
     Parameters
     ----------
@@ -190,47 +192,25 @@ def setup_logging(
     enable_file_logging
         Whether to enable file logging
 
+    Notes
+    -----
+    This function uses logging.config.dictConfig() with configuration
+    defined in logging_settings.py for better separation of concerns.
+
     """
     # Create log directory if it doesn't exist
     if enable_file_logging:
         log_dir.mkdir(parents=True, exist_ok=True)
 
-    # Get the root logger and clear any existing handlers
-    root_logger = logging.getLogger()
-    root_logger.handlers.clear()
-    root_logger.setLevel(getattr(logging, log_level.upper()))
-
-    # Console handler with colors
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(getattr(logging, log_level.upper()))
-
-    # Console formatter with timestamp and colored levels
-    console_format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-    console_formatter = ColoredConsoleFormatter(
-        console_format, datefmt="%Y-%m-%d %H:%M:%S"
+    # Get logging configuration from settings
+    config = get_logging_config(
+        log_dir=log_dir,
+        log_level=log_level,
+        enable_file_logging=enable_file_logging,
     )
-    console_handler.setFormatter(console_formatter)
 
-    # Add console handler to root logger
-    root_logger.addHandler(console_handler)
-
-    # File handler with rotation
-    if enable_file_logging:
-        file_handler = TimedRotatingFileHandler(
-            filename=log_dir / "reddit_wsb_stocks.log",
-            when="midnight",
-            interval=1,
-            backupCount=30,
-            encoding="utf-8",
-        )
-        file_handler.setLevel(getattr(logging, log_level.upper()))
-
-        # JSON formatter for file output
-        file_formatter = JSONFormatter(datefmt="%Y-%m-%dT%H:%M:%S")
-        file_handler.setFormatter(file_formatter)
-
-        # Add file handler to root logger
-        root_logger.addHandler(file_handler)
+    # Apply configuration using dictConfig
+    logging.config.dictConfig(config)
 
 
 def get_logger(name: str) -> ContextLogger:
