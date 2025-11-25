@@ -41,7 +41,7 @@ def get_logging_config(
         "formatters": {
             "colored_console": {
                 "()": "reddit_wsb_stocks.logging_config.ColoredConsoleFormatter",
-                "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                "format": "%(asctime)s     [%(levelname)s]     %(name)s: %(message)s",
                 "datefmt": "%Y-%m-%d %H:%M:%S",
             },
             "json": {

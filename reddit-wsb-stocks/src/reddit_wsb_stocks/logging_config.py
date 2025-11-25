@@ -30,20 +30,38 @@ import logging.config
 from pathlib import Path
 from typing import Any
 
-from colorama import Fore, Style, init
-
 from reddit_wsb_stocks.logging_settings import get_logging_config
 
-# Initialize colorama for cross-platform colored output
-init(autoreset=True)
+# Native ANSI escape codes for colors and formatting
+class ANSICodes:
+    """ANSI escape codes for terminal formatting."""
+
+    # Reset
+    RESET = "\033[0m"
+
+    # Text formatting
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+
+    # Foreground colors
+    RED = "\033[31m"
+    BRIGHT_RED = "\033[91m"
+    YELLOW = "\033[33m"
+    BLUE = "\033[34m"
+    WHITE = "\033[97m"
+    GREY = "\033[90m"
+
+    # Background colors
+    BG_DARK_RED = "\033[41m"
+
 
 # Color mapping for log levels
 LEVEL_COLORS = {
-    "CRITICAL": Fore.RED + Style.BRIGHT,
-    "ERROR": Fore.LIGHTRED_EX,
-    "WARNING": Fore.YELLOW,
-    "INFO": Fore.BLUE,
-    "DEBUG": Fore.LIGHTBLACK_EX,
+    "CRITICAL": f"{ANSICodes.BOLD}{ANSICodes.WHITE}{ANSICodes.BG_DARK_RED}",
+    "ERROR": f"{ANSICodes.BOLD}{ANSICodes.BRIGHT_RED}",
+    "WARNING": f"{ANSICodes.BOLD}{ANSICodes.YELLOW}",
+    "INFO": ANSICodes.BLUE,
+    "DEBUG": ANSICodes.GREY,
 }
 
 
@@ -64,20 +82,32 @@ class ColoredConsoleFormatter(logging.Formatter):
             Formatted log message with colored level
 
         """
-        # Save original levelname
+        # Save original attributes
         original_levelname = record.levelname
+        original_name = record.name
+        original_msg = record.msg
 
         # Add color to levelname
         if record.levelname in LEVEL_COLORS:
             record.levelname = (
-                f"{LEVEL_COLORS[record.levelname]}{record.levelname}{Style.RESET_ALL}"
+                f"{LEVEL_COLORS[record.levelname]}{record.levelname}{ANSICodes.RESET}"
             )
+
+        # Format module:function:line with dim (grey) color
+        module_info = f"{record.name}:{record.funcName}:{record.lineno}"
+        record.name = f"{ANSICodes.DIM}{module_info}{ANSICodes.RESET}"
+
+        # Bold the message
+        if isinstance(record.msg, str):
+            record.msg = f"{ANSICodes.BOLD}{record.msg}{ANSICodes.RESET}"
 
         # Format the message
         result = super().format(record)
 
-        # Restore original levelname
+        # Restore original attributes
         record.levelname = original_levelname
+        record.name = original_name
+        record.msg = original_msg
 
         return result
 
